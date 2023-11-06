@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoanGenius</title>
+    <meta name="description" content="Your page description here.">
+    <meta name="keywords" content="your, keywords, here">
+
+    <!-- Include jQuery via CDN (Before Bootstrap) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <!-- Include Bootstrap CSS via CDN -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+
+    <!-- Include Bootstrap JS via CDN (Optional) -->
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <!-- Include Vue.js via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.0/axios.min.js"
+        integrity="sha512-WrdC3CE9vf1nBf58JHepuWT4x24uTacky9fuzw2g/3L9JkihgwZ6Cfv+JGTtNyosOhEmttMtEZ6H3qJWfI7gIQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <style>
+        /* Style for the floating text field and send button */
+
+
+        /* Style for the floating text field and send button */
+        .conversations {
+            max-height: 90vh;
+            /* Set a maximum height (70% of viewport height) */
+            overflow-y: auto;
+            /* Add a vertical scrollbar when content overflows */
+            padding: 30px 30px 100px 30px;
+        }
+
+        .fixed-bottom {
+            position: fixed;
+            bottom: 1vh;
+            left: 0;
+            width: 100%;
+            background-color: #fff;
+            padding: 10px;
+        }
+
+        /* Style for chat messages */
+        .user-message {
+            background-color: #d2eae9;
+            color: #111;
+            text-align: right;
+            border-radius: 10px;
+            padding: 10px;
+            margin: 0;
+        }
+
+        .system-message {
+            background-color: #007bff;
+            color: #fff;
+            border-radius: 10px;
+            padding: 10px;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <a class="navbar-brand" href="#">LoanGenius</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="devs">Developers</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    <main id="app">
+        <div class="container">
+            <div class="conversations">
+                <div v-for="(message, index) in messages" :key="index" style="padding: 10px; display: block;">
+                    <div class="text-right" v-if="message.isUser">
+                        <span class="user-message">{{ message.content }}</span>
+                    </div>
+                    <div v-else>
+                        <span class="system-message">{{ message.content }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prompts as Buttons -->
+            <div class="fixed-bottom" v-if="prompts.length > 0">
+                <div class="container text-right">
+                    <label for="">Click to choose option: </label>
+                    <button v-for="(prompt, index) in prompts" :key="index" @click="selectPrompt(prompt)"
+                        class="btn btn-success ml-2">{{ prompt }}</button>
+                </div>
+            </div>
+
+            <!-- Floating Text Field and Send Button -->
+            <div class="fixed-bottom" v-else>
+                <div class="container">
+                    <div class="input-group">
+                        <input type="hidden" v-model="questionNo">
+                        <input type="text" id="chatTextField" autofocus @keydown.enter="sendMessage()" v-model="newMessage"
+                            class="form-control" placeholder="Type a message">
+                        <div class="input-group-append">
+                            <button class="btn btn-primary" type="button" @click="sendMessage()">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+    </main>
+</body>
+
+<script>
+    function scrollChatsToBottom() {
+        const conversationDiv = document.querySelector('.conversations');
+        const scrollHeight = conversationDiv.scrollHeight;
+        const duration = 300; // Adjust the duration (in milliseconds) for the scrolling animation
+        const increment = 5;
+        let currentPosition = conversationDiv.scrollTop;
+        const distance = scrollHeight - currentPosition;
+        const perTick = (distance / duration) * increment;
+
+        const animateScroll = function () {
+            currentPosition += perTick;
+            conversationDiv.scrollTop = currentPosition;
+
+            if (currentPosition < scrollHeight) {
+                requestAnimationFrame(animateScroll);
+            }
+        };
+
+        animateScroll();
+    }
+
+    const audio = new Audio('chat2.mp3');
+
+    let app = new Vue({
+        el: '#app',
+        data: {
+            newMessage: '',
+            messages: [],
+            question: 'customer-details',
+            prompts: [],
+            questionNo: 0,
+        },
+        methods: {
+
+            getAnswer() {
+                axios.post('answer', {
+                    questionNo: this.questionNo,
+                    userResponse: this.newMessage
+                }).then((response) => {
+                    // Handle the response here
+                    console.log('Response:', response.data);
+                    this.questionNo = response.data.nextQuestion.qno;
+                    if (response.data.reply != null) {
+                        setTimeout(function () {
+                            app.messages.push({ content: response.data.reply, isUser: false });
+                        }, 1000);
+                    }
+
+                    setTimeout(function () {
+                        audio.play();
+                        app.messages.push({ content: response.data.nextQuestion.q, isUser: false });
+                        app.prompts = response.data.nextQuestion.prompts;
+                        if(app.prompts.length < 1){
+                            document.getElementById('chatTextField').focus();
+                        }
+                    }, 2000);
+
+                    setTimeout(function () {
+                        app.$nextTick(() => {
+                            scrollChatsToBottom();
+                        });
+                    }, 2500);
+
+                }).catch((error) => {
+                    // Handle any errors here
+                    console.error('Error:', error);
+                });
+            },
+
+            sendMessage() {
+                if (this.newMessage.trim() !== '') {
+                    this.messages.push({ content: this.newMessage, isUser: true });
+                    this.getAnswer();
+                    this.newMessage = ''; // Clear the input field
+                    this.$nextTick(() => {
+                        scrollChatsToBottom();
+                    });
+                }
+            },
+            selectPrompt(prompt) {
+                this.messages.push({ content: prompt, isUser: true });
+                this.newMessage = prompt;
+                this.getAnswer();
+                this.prompts = [];
+                this.newMessage = '';
+                this.$nextTick(() => {
+                    scrollChatsToBottom();
+                });
+            }
+        },
+        created: function () {
+            setTimeout(function () {
+                app.messages.push({ content: "Welcome to the LoanGenie.", isUser: false });
+            }, 1000);
+            setTimeout(function () {
+                app.messages.push({ content: "May I please know your first name?", isUser: false });
+            }, 1500);
+        }
+    });
+</script>
+
+</html>
